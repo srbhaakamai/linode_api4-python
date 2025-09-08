@@ -269,7 +269,19 @@ class RuleCriteria(JSONObject):
 @dataclass
 class AlertChannelEnvelope(JSONObject):
     """
-    Envelope for alert channel list responses.
+    Represents a single alert channel entry returned inside alert definition
+    responses.
+
+    This envelope type is used when an AlertDefinition includes a list of
+    alert channels. It contains lightweight information about the channel so
+    that callers can display or reference the channel without performing an
+    additional API lookup.
+
+    Fields:
+      - id: int - Unique identifier of the alert channel.
+      - label: str - Human-readable name for the channel.
+      - type: str - Channel type (e.g. 'webhook', 'email', 'pagerduty').
+      - url: str - Destination URL or address associated with the channel.
     """
     id: int
     label: str
@@ -279,7 +291,34 @@ class AlertChannelEnvelope(JSONObject):
 @dataclass
 class AlertDefinition(Base):
     """
-    An alert definition for a monitor service.
+    Represents an alert definition for a monitor service.
+
+    This object models the JSON returned by the Monitor API's alert-definition
+    endpoints. Alert definitions describe a named condition (one or more rules)
+    that, when met, will trigger notifications via configured alert channels.
+
+    Typical usage:
+      alert = client.monitor.alert_definitions(service_type="dbaas", alert_id=1234)
+      alerts = client.monitor.alert_definitions(service_type="dbaas")
+
+    Important fields encoded in the API response include:
+      - id: int - Unique identifier for the alert definition.
+      - label: str - Human-readable name for the alert.
+      - severity: str/int - Severity level (e.g. "warning", "critical").
+      - type: str - "user" or "system" indicating origin.
+      - service_type: str - The service type the alert applies to (e.g. "dbaas").
+      - status: str - Current status of the alert definition (e.g. "active").
+      - rule_criteria: dict - The set of rules evaluated to determine whether
+        an alert should trigger (see :class:`RuleCriteria`).
+      - trigger_conditions: dict - Evaluation configuration (see :class:`TriggerConditions`).
+      - alert_channels: list - A list of lightweight channel envelopes
+        (:class:`AlertChannelEnvelope`) used to notify when the alert fires.
+      - entity_ids: list - Optional list of entity IDs this alert targets.
+      - created / updated / updated_by / created_by - Auditing metadata.
+
+    Note: The API returns a key named "class" which is a reserved word in
+    Python. When populating this object the value is stored on the attribute
+    ``_class``.
 
     API Documentation: https://techdocs.akamai.com/linode-api/reference/get-alert-definition
     """
@@ -334,7 +373,7 @@ class AlertChannel(Base):
     This is a top-level API resource and must inherit from Base so that
     `api_list()` and pagination work correctly.
     """
-    api_endpoint = "/monitor/alert-channels"
+    api_endpoint = "/monitor/alert-channels/{id}"
     properties = {
         "id": Property(identifier=True),
         "label": Property(),
@@ -346,7 +385,15 @@ class AlertChannel(Base):
 @dataclass
 class AlertType(Enum):
     """
-    Types of alerts that can be triggered.
+    Enumeration of alert origin types used by alert definitions.
+
+    Values:
+      - SYSTEM: Alerts that originate from the system (built-in or platform-managed).
+      - USER: Alerts created and managed by users (custom alerts).
+
+    The API uses this value in the `type` field of alert-definition responses.
+    This enum can be used to compare or validate the `type` value when
+    processing alert definitions.
     """
     SYSTEM = "system"
     USER = "user"
